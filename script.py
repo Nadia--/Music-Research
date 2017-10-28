@@ -2,7 +2,7 @@
 import objects as Objects
 import filters as Filters
 
-black = Objects.Song('Ciara', 'Paint It Black')
+song1 = Objects.Song('Duran Duran', 'Come Undone')
 
 # Order Matters
 filter_tag_list = [Filters.REMOVE_LONG,
@@ -13,8 +13,12 @@ filter_tag_list = [Filters.REMOVE_LONG,
         Filters.REMOVE_MOVIE_RELATED]
 #filter_tag_list = []
 
-black.fetch_youtube_comments(40, filter_tag_list)
+song1.fetch_youtube_comments(40, filter_tag_list)
 
-black.analyze_sentiment()
+song1.analyze_sentiment(Objects.SENTIMENT_VADER)
+print(song1)
 
-print(black)
+song1.analyze_sentiment(Objects.SENTIMENT_USER)
+song1.compare_analysis()
+
+print(song1)

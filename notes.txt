@@ -1,4 +1,2 @@
-1. Get song title and author from million song dataset
-2. given title/author find youtube video and scrape comments
-3. filter/weight comments for relevancy
-4. analyze sentiment of comments
+1. Setup million_song data set
+2. sample random songs from data set, iteratively improve filtering for better comment quality
