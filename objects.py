@@ -10,7 +10,7 @@ import filters as Filters
 # https://github.com/cjhutto/vaderSentiment
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-DEBUG = 0
+DEBUG = False
 
 YOUTUBE_QUERY_URL = "https://www.googleapis.com/youtube/v3/"
 YOUTUBE_SEARCH_URL = YOUTUBE_QUERY_URL + "search?"
@@ -57,7 +57,7 @@ class Comment:
 
 class Song:
     def __init__(self, artist, title): 
-        #TODO: incorporate million dollar song laters
+        self.error = False 
         self.artist = artist
         self.title = title
         self.video_id = None
@@ -66,17 +66,25 @@ class Song:
         self.average_user_sentiment = None 
 
 
-    # Populates Song.video_id and Song.comments
+    # Populates artist, title, video_id, and comments
     def fetch_youtube_comments(self, comment_count, filter_tag_list):
         # Search for YouTube Video
         search_parameters = {'part': 'snippet', 'q': self.title + " "+ self.artist, 'key': KEY}
         search_url = YOUTUBE_SEARCH_URL + urllib.parse.urlencode(search_parameters)
         json_search = urllib.request.urlopen(search_url).read().decode('utf-8')
         parsed_search = json.loads(json_search)
+        #print(json.dumps(parsed_search, indent=4, sort_keys=True))
 
         # Obtain YouTube Video ID
         # TODO: filter for legit link ("official music video" title or description)
+        # Choosing first result actually works pretty well 
         chosen_result = 0 #takes the first result
+        if not parsed_search['items']:
+            self.debug('error: no results', 'red', True)
+            return
+        if 'videoId' not in parsed_search['items'][chosen_result]['id']:
+            self.debug('error: no videoId tag', 'red', True)
+            return
         self.video_id = parsed_search['items'][chosen_result]['id']['videoId']
 
         # Obtain Comments
@@ -100,7 +108,7 @@ class Song:
                 x['snippet']['topLevelComment']['snippet']['likeCount']) 
                 for x in parsed_comments['items']]
             if len(comments) == 0:
-                printd('error: no comments', 'red')
+                self.debug('error: no comments', 'red', True)
                 break
             # Filter Comments While Obtaining Them
             comments = Filters.run_filters(filter_tag_list, comments, self.title, self.artist)
@@ -109,14 +117,15 @@ class Song:
             self.comments += comments[0:num_added]
             comment_count -= num_added
             if comment_count <= 0:
+                # Done
                 break
 
             if 'nextPageToken' not in parsed_comments:
-                printd('error: no next page token', 'red')
+                self.debug('error: no next page token', 'red', True)
                 break
             nextPageToken = parsed_comments['nextPageToken']
 
-    # Populate Sentiment 
+    # Populates chosen sentiment
     def analyze_sentiment(self, classifier):
         if classifier == SENTIMENT_VADER:
             analyzer = SentimentIntensityAnalyzer()
@@ -154,7 +163,6 @@ class Song:
 
     # How to Represent Self
     def __str__(self):
-
         pairs = [str(comment) for comment in self.comments]
 
         rep_str = '%s by %s\n\nvideo id: %s\nresults: %d' % (
@@ -167,5 +175,11 @@ class Song:
 
 
         return '\n' +rep_str + '\n'.join(pairs) + '\n'
+
+    # debug helper function
+    def debug(self, msg, color=None, is_error=False):
+        if is_error:
+            self.error = True
+        printd(msg, color)
 
 

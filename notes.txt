@@ -1,2 +1,0 @@
-1. Setup million_song data set
-2. sample random songs from data set, iteratively improve filtering for better comment quality
