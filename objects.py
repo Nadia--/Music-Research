@@ -10,16 +10,23 @@ import filters as Filters
 # https://github.com/cjhutto/vaderSentiment
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
+DEBUG = 0
 
 YOUTUBE_QUERY_URL = "https://www.googleapis.com/youtube/v3/"
 YOUTUBE_SEARCH_URL = YOUTUBE_QUERY_URL + "search?"
 YOUTUBE_COMMENTS_URL = YOUTUBE_QUERY_URL + "commentThreads?"
 
-key = 'AIzaSyBAcQUU5I4FElmsYVK0irkDPVGQ_OLLkO0' #TODO use key that isnt from stackoverflow XD
-
+KEY = 'AIzaSyBAcQUU5I4FElmsYVK0irkDPVGQ_OLLkO0' #TODO use key that isnt from stackoverflow XD
 
 SENTIMENT_VADER = "vader"
 SENTIMENT_USER = "user"
+
+def printd(arg, color=None):
+    if DEBUG:
+        if color is None:
+            print(arg)
+        else:
+            print(stylize(arg, colored.fg(color)))
 
 class Comment:
     def __init__(self, comment, like_count):
@@ -62,7 +69,7 @@ class Song:
     # Populates Song.video_id and Song.comments
     def fetch_youtube_comments(self, comment_count, filter_tag_list):
         # Search for YouTube Video
-        search_parameters = {'part': 'snippet', 'q': self.title + " "+ self.artist, 'key': key}
+        search_parameters = {'part': 'snippet', 'q': self.title + " "+ self.artist, 'key': KEY}
         search_url = YOUTUBE_SEARCH_URL + urllib.parse.urlencode(search_parameters)
         json_search = urllib.request.urlopen(search_url).read().decode('utf-8')
         parsed_search = json.loads(json_search)
@@ -74,10 +81,10 @@ class Song:
 
         # Obtain Comments
         nextPageToken = None
-        while comment_count > 0:
+        while 1:
             comments_parameters = {'part': 'snippet', 
                     'videoId': self.video_id, 
-                    'key': key, 
+                    'key': KEY, 
                     'maxResults': 100, 
                     'order':'relevance'}
             if nextPageToken is not None:
@@ -92,15 +99,22 @@ class Song:
                 x['snippet']['topLevelComment']['snippet']['textOriginal'], 
                 x['snippet']['topLevelComment']['snippet']['likeCount']) 
                 for x in parsed_comments['items']]
-
-            nextPageToken = parsed_comments['nextPageToken']
-
+            if len(comments) == 0:
+                printd('error: no comments', 'red')
+                break
             # Filter Comments While Obtaining Them
             comments = Filters.run_filters(filter_tag_list, comments, self.title, self.artist)
 
             num_added = min(len(comments), comment_count)
             self.comments += comments[0:num_added]
             comment_count -= num_added
+            if comment_count <= 0:
+                break
+
+            if 'nextPageToken' not in parsed_comments:
+                printd('error: no next page token', 'red')
+                break
+            nextPageToken = parsed_comments['nextPageToken']
 
     # Populate Sentiment 
     def analyze_sentiment(self, classifier):
