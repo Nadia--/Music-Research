@@ -5,7 +5,7 @@ import hdf5_helper as hh
 
 NUM_COMMENTS = 10
 
-#TODO: comment language classification
+#TODO: check out why Duran Duran UMF listed has 23 comments, but only fetches 17
 #TODO: look at MSDB tags
 #TODO: ML correlations between tags and comments
 
@@ -38,12 +38,15 @@ for idx, song_loc in enumerate(songs):
 
     # B
     songB = Objects.Song(artist, title)
+    '''
     filter_tag_list_B = [Filters.REMOVE_LONG,
             Filters.REMOVE_IF_NO_LIKES, 
             Filters.REMOVE_DUMB_COMMENTS, 
             Filters.KEEP_TITLE_AND_ARTIST, 
             Filters.KEEP_SONG_RELATED, 
             Filters.REMOVE_MOVIE_RELATED]
+    '''
+    filter_tag_list_B = [Filters.REMOVE_NONENGLISH_AND_IRRELEVANT]
     get_comments(songB, filter_tag_list_B, 'B', filt_songs)
 
     num_total+=1

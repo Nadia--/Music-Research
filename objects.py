@@ -87,6 +87,8 @@ class Song:
             return
         self.video_id = parsed_search['items'][chosen_result]['id']['videoId']
 
+        vader = SentimentIntensityAnalyzer()
+
         # Obtain Comments
         nextPageToken = None
         while 1:
@@ -111,6 +113,10 @@ class Song:
                 self.debug('error: no comments', 'red', True)
                 break
             # Filter Comments While Obtaining Them
+            for comment in comments:
+                vs = vader.polarity_scores(comment.text)
+                comment.vader_sentiment = vs['compound'] 
+
             comments = Filters.run_filters(filter_tag_list, comments, self.title, self.artist)
 
             num_added = min(len(comments), comment_count)
@@ -127,18 +133,13 @@ class Song:
 
     # Populates chosen sentiment
     def analyze_sentiment(self, classifier):
-        if classifier == SENTIMENT_VADER:
-            analyzer = SentimentIntensityAnalyzer()
-
         sentiment = 0.0;
         num_items = 0;
         for comment in self.comments:
             num_items+=1
             comment_sentiment = None
             if classifier == SENTIMENT_VADER:
-                vs = analyzer.polarity_scores(comment.text)
-                comment_sentiment = vs['compound']
-                comment.vader_sentiment = comment_sentiment
+                comment_sentiment = comment.vader_sentiment 
             if classifier == SENTIMENT_USER:
                 print("comment: %s" % comment.text)
                 comment_sentiment = float(input("Your rating? [-1,1] "))
@@ -168,7 +169,7 @@ class Song:
         rep_str = '%s by %s\n\nvideo id: %s\nresults: %d' % (
                 self.title, self.artist, self.video_id, len(self.comments))
         if self.average_vader_sentiment is not None:
-            rep_str+= '\nvader senteiment: %+.5f' % self.average_vader_sentiment
+            rep_str+= '\nvader sentiment: %+.5f' % self.average_vader_sentiment
         if self.average_user_sentiment is not None:
             rep_str+= '\nuser sentiment: %+5f' % self.average_user_sentiment
         rep_str+='\n'
