@@ -3,8 +3,9 @@ import objects as Objects
 import filters as Filters
 import hdf5_helper as hh
 
-NUM_COMMENTS = 10
+NUM_COMMENTS = 40
 
+#TODO: 37: You Girl by Third Degree is not a music video (Girl getting Burned video)
 #TODO: check out why Duran Duran UMF listed has 23 comments, but only fetches 17
 #TODO: look at MSDB tags
 #TODO: ML correlations between tags and comments
@@ -18,6 +19,7 @@ def get_comments(song, filter_tag_list, char, filt_songs=None):
         if len(song.comments) >= NUM_COMMENTS:
             if char == 'B' and filt_songs is not None:
                 filt_songs.append(song)
+        if len(song.comments) > 0:
             print('AB Testing: %c' % char)
             print(song)
 
@@ -33,7 +35,8 @@ for idx, song_loc in enumerate(songs):
 
     # A
     songA = Objects.Song(artist, title)
-    filter_tag_list_A = []
+    #filter_tag_list_A = []
+    filter_tag_list_A = [Filters.REMOVE_NONENGLISH]
     get_comments(songA, filter_tag_list_A, 'A')
 
     # B

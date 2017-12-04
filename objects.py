@@ -39,7 +39,8 @@ class Comment:
 
     def __str__(self):
         
-        rep_str = '(L:%d, L"%d' %(self.like_count, self.keep)
+        rep_str = '(L:%d, K:%d' %(self.like_count, self.keep)
+
         if self.vader_sentiment is not None:
             rep_str += ', SV:%+.3f' % self.vader_sentiment
         if self.user_sentiment is not None:
@@ -110,7 +111,7 @@ class Song:
                 x['snippet']['topLevelComment']['snippet']['likeCount']) 
                 for x in parsed_comments['items']]
             if len(comments) == 0:
-                self.debug('error: no comments', 'red', True)
+                self.debug('error: no comments', 'red', False)
                 break
             # Filter Comments While Obtaining Them
             for comment in comments:
@@ -127,7 +128,7 @@ class Song:
                 break
 
             if 'nextPageToken' not in parsed_comments:
-                self.debug('error: no next page token', 'red', True)
+                self.debug('error: no next page token', 'red', False)
                 break
             nextPageToken = parsed_comments['nextPageToken']
 
