@@ -1,5 +1,6 @@
 #General Libraries
 import urllib.request
+import re
 import json
 import colored
 from colored import stylize
@@ -10,10 +11,12 @@ import filters as Filters
 # https://github.com/cjhutto/vaderSentiment
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-DEBUG = False
+DEBUG = True
+COLORS = False
 
 YOUTUBE_QUERY_URL = "https://www.googleapis.com/youtube/v3/"
 YOUTUBE_SEARCH_URL = YOUTUBE_QUERY_URL + "search?"
+YOUTUBE_VIDEOS_URL = YOUTUBE_QUERY_URL + "videos?"
 YOUTUBE_COMMENTS_URL = YOUTUBE_QUERY_URL + "commentThreads?"
 
 KEY = 'AIzaSyBAcQUU5I4FElmsYVK0irkDPVGQ_OLLkO0' #TODO use key that isnt from stackoverflow XD
@@ -23,7 +26,7 @@ SENTIMENT_USER = "user"
 
 def printd(arg, color=None):
     if DEBUG:
-        if color is None:
+        if color is None or COLORS is False:
             print(arg)
         else:
             print(stylize(arg, colored.fg(color)))
@@ -53,14 +56,22 @@ class Comment:
             else: 
                 rep_str += ', ' + stylize('G', colored.fg('green'))
 
-        rep_str+= ', M:"%s")' % self.text
+        rep_str+= ', M:"%s")' % self.text[:60]
         return rep_str
+
+def query(base, parameters):
+    parameters['key'] = KEY
+    url = base + urllib.parse.urlencode(parameters)
+    json_result = urllib.request.urlopen(url).read().decode('utf-8')
+    return json.loads(json_result)
 
 class Song:
     def __init__(self, artist, title): 
         self.error = False 
         self.artist = artist
         self.title = title
+        self.youtube_title = None
+        self.duration = None
         self.video_id = None
         self.comments = []
         self.average_vader_sentiment = None #TODO: add weights
@@ -70,23 +81,24 @@ class Song:
     # Populates artist, title, video_id, and comments
     def fetch_youtube_comments(self, comment_count, filter_tag_list):
         # Search for YouTube Video
-        search_parameters = {'part': 'snippet', 'q': self.title + " "+ self.artist, 'key': KEY}
-        search_url = YOUTUBE_SEARCH_URL + urllib.parse.urlencode(search_parameters)
-        json_search = urllib.request.urlopen(search_url).read().decode('utf-8')
-        parsed_search = json.loads(json_search)
-        #print(json.dumps(parsed_search, indent=4, sort_keys=True))
+        slist = query(YOUTUBE_SEARCH_URL, {'part':'snippet', 'q': self.title +" "+ self.artist})
+        # print(json.dumps(slist['items'][0]['snippet'], indent=4, sort_keys=True))
 
         # Obtain YouTube Video ID
         # TODO: filter for legit link ("official music video" title or description)
-        # Choosing first result actually works pretty well 
+        # TODO: use more than one result?
+        # Currently choosing first result actually works pretty well 
         chosen_result = 0 #takes the first result
-        if not parsed_search['items']:
+        if not slist['items']:
             self.debug('error: no results', 'red', True)
             return
-        if 'videoId' not in parsed_search['items'][chosen_result]['id']:
+        if 'videoId' not in slist['items'][chosen_result]['id']:
             self.debug('error: no videoId tag', 'red', True)
             return
-        self.video_id = parsed_search['items'][chosen_result]['id']['videoId']
+        self.video_id = slist['items'][chosen_result]['id']['videoId']
+        self.youtube_title = slist['items'][chosen_result]['snippet']['title']
+        print(self.youtube_title)
+        print(self.video_id)
 
         vader = SentimentIntensityAnalyzer()
 
@@ -95,42 +107,61 @@ class Song:
         while 1:
             comments_parameters = {'part': 'snippet', 
                     'videoId': self.video_id, 
-                    'key': KEY, 
-                    'maxResults': 100, 
+                    'maxeesults': 100,
                     'order':'relevance'}
             if nextPageToken is not None:
                 comments_parameters['pageToken'] = nextPageToken
 
-            comments_url = YOUTUBE_COMMENTS_URL + urllib.parse.urlencode(comments_parameters)
-            json_comments = urllib.request.urlopen(comments_url).read().decode('utf-8')
-            parsed_comments = json.loads(json_comments)
-            #print(json.dumps(parsed_comments, indent=4, sort_keys=True))
+            query_comments = query(YOUTUBE_COMMENTS_URL, comments_parameters)
+            #print(json.dumps(query_comments, indent=4, sort_keys=True))
 
             comments = [Comment(
                 x['snippet']['topLevelComment']['snippet']['textOriginal'], 
                 x['snippet']['topLevelComment']['snippet']['likeCount']) 
-                for x in parsed_comments['items']]
+                for x in query_comments['items']]
             if len(comments) == 0:
                 self.debug('error: no comments', 'red', False)
-                break
-            # Filter Comments While Obtaining Them
+                return 
             for comment in comments:
                 vs = vader.polarity_scores(comment.text)
                 comment.vader_sentiment = vs['compound'] 
 
+            # Filter Comments While Obtaining Them
             comments = Filters.run_filters(filter_tag_list, comments, self.title, self.artist)
 
             num_added = min(len(comments), comment_count)
-            self.comments += comments[0:num_added]
+            self.comments += comments[:num_added]
             comment_count -= num_added
+
             if comment_count <= 0:
                 # Done
                 break
+            if 'nextPageToken' not in query_comments:
+                self.debug('error: no next page token (possibly not enough comments)', 'red', False)
+                return 
+            nextPageToken = query_comments['nextPageToken']
 
-            if 'nextPageToken' not in parsed_comments:
-                self.debug('error: no next page token', 'red', False)
-                break
-            nextPageToken = parsed_comments['nextPageToken']
+        # Check Duration of Video
+        LB_SEC = 60 * 3
+        UB_SEC = 60 * 7
+        video_parameters = {'part': 'contentDetails', 'key': KEY}
+        metadata = query(YOUTUBE_VIDEOS_URL, {'id': self.video_id, 'part': 'contentDetails'})
+        duration = metadata['items'][0]['contentDetails']['duration']
+        print(duration)
+        dur = re.search('\PT(\d+)M(\d+)S', duration)
+        if not dur:
+            self.debug('error: duration is either seconds or hours long', 'red', True)
+            return
+            
+        minutes, seconds = map(int, re.search('\PT(\d+)M(\d+)S', duration).groups())
+        self.duration = minutes * 60 + seconds
+        if self.duration < LB_SEC: 
+            self.debug('error: duration is too short: %s minutes' % (self.duration / 60), 'red', True)
+            return
+        if self.duration > UB_SEC:
+            self.debug('error: duration is too long: %s minutes' % (self.duration / 60), 'red', True)
+            return
+
 
     # Populates chosen sentiment
     def analyze_sentiment(self, classifier):
