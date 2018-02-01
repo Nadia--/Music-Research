@@ -11,7 +11,7 @@ import filters as Filters
 # https://github.com/cjhutto/vaderSentiment
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-DEBUG = True
+DEBUG = False
 COLORS = False
 
 YOUTUBE_QUERY_URL = "https://www.googleapis.com/youtube/v3/"
@@ -23,6 +23,12 @@ KEY = 'AIzaSyBAcQUU5I4FElmsYVK0irkDPVGQ_OLLkO0' #TODO use key that isnt from sta
 
 SENTIMENT_VADER = "vader"
 SENTIMENT_USER = "user"
+
+
+ERROR_NO_RESULTS = "error: no results"
+ERROR_NO_VIDEOID = "error: no videoId tag"
+ERROR_NO_COMMENTS = "error: no comments"
+ERROR_NO_TOKEN = "error: no next page token (possibly not enough comments)"
 
 def printd(arg, color=None):
     if DEBUG:
@@ -67,7 +73,7 @@ def query(base, parameters):
 
 class Song:
     def __init__(self, artist, title): 
-        self.error = False 
+        self.error = None 
         self.artist = artist
         self.title = title
         self.youtube_title = None
@@ -90,15 +96,15 @@ class Song:
         # Currently choosing first result actually works pretty well 
         chosen_result = 0 #takes the first result
         if not slist['items']:
-            self.debug('error: no results', 'red', True)
+            self.debug(ERROR_NO_RESULTS, 'red')
             return
         if 'videoId' not in slist['items'][chosen_result]['id']:
-            self.debug('error: no videoId tag', 'red', True)
+            self.debug(ERROR_NO_VIDEOID, 'red')
             return
         self.video_id = slist['items'][chosen_result]['id']['videoId']
         self.youtube_title = slist['items'][chosen_result]['snippet']['title']
-        print(self.youtube_title)
-        print(self.video_id)
+        #print(self.youtube_title)
+        #print(self.video_id)
 
         vader = SentimentIntensityAnalyzer()
 
@@ -120,7 +126,7 @@ class Song:
                 x['snippet']['topLevelComment']['snippet']['likeCount']) 
                 for x in query_comments['items']]
             if len(comments) == 0:
-                self.debug('error: no comments', 'red', False)
+                self.debug(ERROR_NO_COMMENTS, 'red')
                 return 
             for comment in comments:
                 vs = vader.polarity_scores(comment.text)
@@ -137,7 +143,7 @@ class Song:
                 # Done
                 break
             if 'nextPageToken' not in query_comments:
-                self.debug('error: no next page token (possibly not enough comments)', 'red', False)
+                self.debug(ERROR_NO_TOKEN, 'red')
                 return 
             nextPageToken = query_comments['nextPageToken']
 
@@ -147,19 +153,19 @@ class Song:
         video_parameters = {'part': 'contentDetails', 'key': KEY}
         metadata = query(YOUTUBE_VIDEOS_URL, {'id': self.video_id, 'part': 'contentDetails'})
         duration = metadata['items'][0]['contentDetails']['duration']
-        print(duration)
+        #print(duration)
         dur = re.search('\PT(\d+)M(\d+)S', duration)
         if not dur:
-            self.debug('error: duration is either seconds or hours long', 'red', True)
+            self.debug('error: duration is either seconds or hours long', 'red')
             return
             
         minutes, seconds = map(int, re.search('\PT(\d+)M(\d+)S', duration).groups())
         self.duration = minutes * 60 + seconds
         if self.duration < LB_SEC: 
-            self.debug('error: duration is too short: %s minutes' % (self.duration / 60), 'red', True)
+            self.debug('error: duration is too short: %s minutes' % (self.duration / 60), 'red')
             return
         if self.duration > UB_SEC:
-            self.debug('error: duration is too long: %s minutes' % (self.duration / 60), 'red', True)
+            self.debug('error: duration is too long: %s minutes' % (self.duration / 60), 'red')
             return
 
 
@@ -210,9 +216,8 @@ class Song:
         return '\n' +rep_str + '\n'.join(pairs) + '\n'
 
     # debug helper function
-    def debug(self, msg, color=None, is_error=False):
-        if is_error:
-            self.error = True
-        printd(msg, color)
+    def debug(self, err, color=None):
+        self.error = err
+        printd(err, color)
 
 
