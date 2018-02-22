@@ -1,11 +1,11 @@
-#General Libraries
+# General Libraries
 import urllib.request
 import re
 import json
 import colored
 from colored import stylize
 
-#Project Libraries
+# Project Libraries
 import filters as Filters 
 
 # https://github.com/cjhutto/vaderSentiment
